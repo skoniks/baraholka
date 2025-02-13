@@ -34,13 +34,16 @@ const defaultKeyboard = new Keyboard()
   .resized();
 
 const tagKeyboard = (ctx: MyContext) => {
+  let count = 0;
+  let length = 0;
   const keyboard = new InlineKeyboard();
-  for (let i = 1; i <= tags.length; i++) {
-    const tag = tags[i - 1];
+  for (const tag of tags) {
     const use = ctx.session.tags.includes(tag);
     const text = `${use ? '✅' : '☑️'} ${tag}`;
     keyboard.text(text, `tag:${tag}`);
-    if (i % 3 === 0) keyboard.row();
+    if (length + tag.length > 15 || ++count >= 3) {
+      keyboard.row(), (length = count = 0);
+    } else length += tag.length;
   }
   return keyboard;
 };
@@ -177,9 +180,11 @@ async function publish(ctx: MyContext) {
     text += ` за *${num} ₽*`;
   }
   const user = [
-    ctx.message?.from.first_name ?? '',
+    ctx.message?.from.first_name ?? 'Name',
     ctx.message?.from.last_name ?? '',
-  ].join(' ');
+  ]
+    .filter((name) => name.trim())
+    .join(' ');
   text += `\n\n[${user}](tg://user?id=${userId})`;
   const media = ctx.session.imgs.map((id, index) =>
     index === 0
