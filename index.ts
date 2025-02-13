@@ -177,7 +177,7 @@ async function publish(ctx: MyContext) {
   if (ctx.session.price > 0) {
     const num = new Intl.NumberFormat('ru-RU', { style: 'decimal' }) //
       .format(ctx.session.price);
-    text += ` за *${num} ₽*`;
+    text += ` за <b>${num} ₽</b>`;
   }
   const user = [
     ctx.message?.from.first_name ?? 'Name',
@@ -185,10 +185,10 @@ async function publish(ctx: MyContext) {
   ]
     .filter((name) => name.trim())
     .join(' ');
-  text += `\n\n[${user}](tg://user?id=${userId})`;
+  text += `\n\n<a href="tg://user?id=${userId}">${user}</a>`;
   const media = ctx.session.imgs.map((id, index) =>
     index === 0
-      ? InputMediaBuilder.photo(id, { caption: text, parse_mode: 'Markdown' })
+      ? InputMediaBuilder.photo(id, { caption: text, parse_mode: 'HTML' })
       : InputMediaBuilder.photo(id),
   );
   const messages: number[] = [];
@@ -198,7 +198,7 @@ async function publish(ctx: MyContext) {
     });
   } else {
     await ctx.api
-      .sendMessage(channel, text, { parse_mode: 'Markdown' })
+      .sendMessage(channel, text, { parse_mode: 'HTML' })
       .then((msg) => messages.push(msg.message_id));
   }
   const keyboard = new InlineKeyboard().text(
@@ -206,9 +206,9 @@ async function publish(ctx: MyContext) {
     `remove:${messages.join(',')}`,
   );
   const link = `https://t.me/c/${channel.replace(/^-100/, '')}/${messages[0]}`;
-  await ctx.reply(`Объявление [опубликовано](${link})`, {
+  await ctx.reply(`Объявление <a href="${link}">опубликовано</a>`, {
     reply_markup: keyboard,
-    parse_mode: 'Markdown',
+    parse_mode: 'HTML',
   });
   ctx.session = initial();
 }
