@@ -140,6 +140,13 @@ async function handle(ctx: MyContext) {
 }
 
 async function publish(ctx: MyContext) {
+  const userId = ctx.message?.from.id ?? 0;
+  const channel = process.env.CHANNEL || '';
+  const member = await ctx.api.getChatMember(channel, userId);
+  if (['restricted', 'left', 'kicked'].includes(member.status))
+    return ctx.reply('Для публикации необходимо подписаться на канал');
+  if (new Date().getHours() < 9)
+    return ctx.reply('Публикация доступна с 9:00 до 23:59 по МСК');
   if (!ctx.session.purpose || !ctx.session.price || !ctx.session.name)
     return handle(ctx);
   let text = ctx.session.name;
@@ -155,11 +162,10 @@ async function publish(ctx: MyContext) {
     ctx.message?.from.first_name ?? '',
     ctx.message?.from.last_name ?? '',
   ].join(' ');
-  text += `\n\n[${user}](tg://user?id=${ctx.message?.from.id})`;
+  text += `\n\n[${user}](tg://user?id=${userId})`;
   const media = ctx.session.imgs.map((id) =>
     InputMediaBuilder.photo(id, { caption: text, parse_mode: 'Markdown' }),
   );
-  const channel = process.env.CHANNEL || '';
   if (media.length) await ctx.api.sendMediaGroup(channel, media);
   else await ctx.api.sendMessage(channel, text, { parse_mode: 'Markdown' });
   await ctx.reply('Объявление опубликовано!');
