@@ -82,11 +82,17 @@ async function bootstrap() {
   });
   bot.callbackQuery(/purpose:(.*)/, async (ctx) => {
     ctx.session.purpose = ctx.match[1];
-    const free = ['ОтдамБесплатно', 'ПростоCпросить'];
-    if (free.includes(ctx.session.purpose)) ctx.session.price = -1;
-    else ctx.session.price = 0;
+    const freeList = ['ОтдамБесплатно', 'ПростоCпросить'];
+    const free = freeList.includes(ctx.session.purpose);
+    ctx.session.price = free ? -1 : 0;
     await ctx.answerCallbackQuery({});
     return handle(ctx);
+  });
+  bot.callbackQuery(/remove:(.*)/, async (ctx) => {
+    const channel = process.env.CHANNEL || '';
+    const messages = ctx.match[1].split(',').map((id) => +id);
+    await ctx.api.deleteMessages(channel, messages).catch();
+    await ctx.answerCallbackQuery({ text: 'Объявление снято' });
   });
   bot.callbackQuery(/tag:(.*)/, async (ctx) => {
     const tag = ctx.match[1];
@@ -109,10 +115,22 @@ async function bootstrap() {
 }
 
 async function start(ctx: MyContext) {
-  return ctx.reply(
-    'Приветствуем в барахолке Discovery!\nТут можно написать много текста, правила итд...',
-    { reply_markup: defaultKeyboard },
-  );
+  const text = `Приветствуем в барахолке Discovery!
+
+Публикация доступна с 9:00 до 23:59 по МСК.
+Для публикации необходимо подписаться на канал.
+
+При создании объявления запрещается:
+1. Продавать лекарства (только бесплатно).
+2. Никакого оружия (и не важно, какого типа).
+3. Одно и то же объявление чаще чем раз в 2 недели.
+4. Реклама услуг и коммерция без согласования
+5. Денежные сборы без согласования
+6. Продажа животных (объявления о приютах только с согласованием)
+
+Добавляйте хэштеги в описание вашего объявления:
+  #Д - Дискавери | #Дп - Дискавери Парк`;
+  return ctx.reply(text, { reply_markup: defaultKeyboard });
 }
 
 async function create(ctx: MyContext) {
@@ -163,12 +181,30 @@ async function publish(ctx: MyContext) {
     ctx.message?.from.last_name ?? '',
   ].join(' ');
   text += `\n\n[${user}](tg://user?id=${userId})`;
-  const media = ctx.session.imgs.map((id) =>
-    InputMediaBuilder.photo(id, { caption: text, parse_mode: 'Markdown' }),
+  const media = ctx.session.imgs.map((id, index) =>
+    index === 0
+      ? InputMediaBuilder.photo(id, { caption: text, parse_mode: 'Markdown' })
+      : InputMediaBuilder.photo(id),
   );
-  if (media.length) await ctx.api.sendMediaGroup(channel, media);
-  else await ctx.api.sendMessage(channel, text, { parse_mode: 'Markdown' });
-  await ctx.reply('Объявление опубликовано!');
+  const messages: number[] = [];
+  if (media.length) {
+    await ctx.api.sendMediaGroup(channel, media).then((group) => {
+      group.forEach((msg) => messages.push(msg.message_id));
+    });
+  } else {
+    await ctx.api
+      .sendMessage(channel, text, { parse_mode: 'Markdown' })
+      .then((msg) => messages.push(msg.message_id));
+  }
+  const keyboard = new InlineKeyboard().text(
+    'Снять с публикации',
+    `remove:${messages.join(',')}`,
+  );
+  const link = `https://t.me/c/${channel.replace(/^-100/, '')}/${messages[0]}`;
+  await ctx.reply(`Объявление [опубликовано](${link})`, {
+    reply_markup: keyboard,
+    parse_mode: 'Markdown',
+  });
   ctx.session = initial();
 }
 
